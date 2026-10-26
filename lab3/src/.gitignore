@@ -1,0 +1,4 @@
+*.o
+/sequential_min_max
+/parallel_min_max
+/run_sequential

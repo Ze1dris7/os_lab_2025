@@ -22,7 +22,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // int *array = malloc(array_size * sizeof(int));
+  // GenerateArray(array, array_size, seed);
+  // struct MinMax min_max = GetMinMax(array, 0, array_size);
+  // free(array);
+  
   int *array = malloc(array_size * sizeof(int));
+
+  if (array == NULL) {
+    perror("malloc");
+    return 1;
+  }
+
   GenerateArray(array, array_size, seed);
   struct MinMax min_max = GetMinMax(array, 0, array_size);
   free(array);
