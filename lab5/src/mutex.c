@@ -1,92 +1,75 @@
-/********************************************************
- * An example source module to accompany...
- *
- * "Using POSIX Threads: Programming with Pthreads"
- *     by Brad nichols, Dick Buttlar, Jackie Farrell
- *     O'Reilly & Associates, Inc.
- *  Modified by A.Kostin
- ********************************************************
- * mutex.c
- *
- * Simple multi-threaded example with a mutex lock.
- */
-#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 
-void do_one_thing(int *);
-void do_another_thing(int *);
-void do_wrap_up(int);
-int common = 0; /* A shared variable for two threads */
-int r1 = 0, r2 = 0, r3 = 0;
-pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+/* Общий счётчик для двух потоков. */
+static int common = 0;
 
-int main() {
-  pthread_t thread1, thread2;
+/* Мьютекс включается при сборке с флагом -DUSE_MUTEX. */
+#ifdef USE_MUTEX
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
-  if (pthread_create(&thread1, NULL, (void *)do_one_thing,
-			  (void *)&common) != 0) {
-    perror("pthread_create");
-    exit(1);
-  }
+static void *increment(void *arg)
+{
+    (void)arg;
 
-  if (pthread_create(&thread2, NULL, (void *)do_another_thing,
-                     (void *)&common) != 0) {
-    perror("pthread_create");
-    exit(1);
-  }
+    for (int i = 0; i < 50; i++) {
+#ifdef USE_MUTEX
+        pthread_mutex_lock(&mutex);
+#endif
 
-  if (pthread_join(thread1, NULL) != 0) {
-    perror("pthread_join");
-    exit(1);
-  }
+        /* Начало критической секции. */
+        int work = common;
+        work++;
 
-  if (pthread_join(thread2, NULL) != 0) {
-    perror("pthread_join");
-    exit(1);
-  }
+        /* Задержка делает потерянные обновления заметнее. */
+        for (volatile unsigned long delay = 0;
+             delay < 500000;
+             delay++) {
+        }
 
-  do_wrap_up(common);
+        common = work;
+        /* Конец критической секции. */
 
-  return 0;
+#ifdef USE_MUTEX
+        pthread_mutex_unlock(&mutex);
+#endif
+    }
+
+    return NULL;
 }
 
-void do_one_thing(int *pnum_times) {
-  int i, j, x;
-  unsigned long k;
-  int work;
-  for (i = 0; i < 50; i++) {
-    // pthread_mutex_lock(&mut);
-    printf("doing one thing\n");
-    work = *pnum_times;
-    printf("counter = %d\n", work);
-    work++; /* increment, but not write */
-    for (k = 0; k < 500000; k++)
-      ;                 /* long cycle */
-    *pnum_times = work; /* write back */
-	// pthread_mutex_unlock(&mut);
-  }
-}
+int main(void)
+{
+    pthread_t first;
+    pthread_t second;
 
-void do_another_thing(int *pnum_times) {
-  int i, j, x;
-  unsigned long k;
-  int work;
-  for (i = 0; i < 50; i++) {
-    // pthread_mutex_lock(&mut);
-    printf("doing another thing\n");
-    work = *pnum_times;
-    printf("counter = %d\n", work);
-    work++; /* increment, but not write */
-    for (k = 0; k < 500000; k++)
-      ;                 /* long cycle */
-    *pnum_times = work; /* write back */
-    // pthread_mutex_unlock(&mut);
-  }
-}
+    int error = pthread_create(&first, NULL, increment, NULL);
+    if (error != 0) {
+        fprintf(stderr, "pthread_create: %s\n", strerror(error));
+        return 1;
+    }
 
-void do_wrap_up(int counter) {
-  int total;
-  printf("All done, counter = %d\n", counter);
+    error = pthread_create(&second, NULL, increment, NULL);
+    if (error != 0) {
+        fprintf(stderr, "pthread_create: %s\n", strerror(error));
+        return 1;
+    }
+
+    error = pthread_join(first, NULL);
+    if (error != 0) {
+        fprintf(stderr, "pthread_join: %s\n", strerror(error));
+        return 1;
+    }
+
+    error = pthread_join(second, NULL);
+    if (error != 0) {
+        fprintf(stderr, "pthread_join: %s\n", strerror(error));
+        return 1;
+    }
+
+    printf("All done, counter = %d\n", common);
+
+    return 0;
 }
